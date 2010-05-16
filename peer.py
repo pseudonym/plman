@@ -3,7 +3,7 @@ import hashlib
 import random
 import socket
 import sys
-from mynet import Event, StreamSocket, DgramSocket, Timer, DEBUG
+from mynet import Event, StreamSocket, DgramSocket, Timer, ListenSocket
 
 myname = '' # host:port of this node; DHT id is the sha-1 of this string
 prev = None # previous peer in DHT
@@ -13,6 +13,8 @@ ping_fail = {} # number of consecutive ping rounds a peer has not responded
                # after 2 rounds, we consider it dead
 
 items = {} # items stored at this node
+
+DEBUG = False
 
 class Trans:
 	# transaction types (i.e., reasons for making DHT requests)
@@ -444,18 +446,7 @@ if __name__ == '__main__':
 	dgram_socket = DgramSocket(myport, packet_cb)
 
 	# set up server socket
-	server_socket = socket.socket()
-	server_socket.setblocking(0)
-	server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-	server_socket.bind(('0.0.0.0', myport))
-	server_socket.listen(5)
-
-	def accept_cb():
-		(ret, addr) = server_socket.accept()
-		StreamSocket(ret, data_cb, error_cb) # will add itself and do the right thing
-
-	server_ev = Event(server_socket.fileno(), Event.READ, accept_cb)
-	server_ev.enable()
+	server_socket = ListenSocket(myport, data_cb, error_cb)
 
 	for i in [ping_timer_cb, backup_timer_cb, finger_timer_cb, stabilize_timer_cb]:
 		Timer(random.randrange(5, 10), i).add() # start timer

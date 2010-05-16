@@ -80,6 +80,7 @@ class StreamSocket:
 		self.error_cb = error_cb
 		self.socket = sock
 		self.socket.setblocking(0)
+		self.data_bytes = -1 # line mode
 
 		# callbacks
 		def wcb(): self.write_cb()
@@ -147,6 +148,23 @@ class StreamSocket:
 		self.wev.disable()
 		self.rev.disable()
 		self.socket.close()
+
+class ListenSocket:
+	def __init__(self, bindport, client_data_cb, client_error_cb):
+		self.client_data_cb = client_data_cb
+		self.client_error_cb = client_error_cb
+		self.socket = socket.socket()
+		self.socket.setblocking(0)
+		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		self.socket.bind(('', bindport))
+		self.socket.listen(5)
+
+		self.ev = Event(self.socket.fileno(), Event.READ, lambda: self.accept_cb())
+		self.ev.enable()
+
+	def accept_cb(self):
+		(ret, addr) = self.socket.accept()
+		StreamSocket(ret, self.client_data_cb, self.client_error_cb) # will add itself and do the right thing
 
 class DgramSocket:
 	def __init__(self, bindport, cb):
