@@ -74,19 +74,19 @@ class Event:
 		if (self.fd, self.ev) in Event.active:
 			del Event.active[(self.fd,self.ev)]
 
+# a TCP socket. calls the following methods on the client object:
+# on_connect(sock) -- when socket is created
+# on_error(sock) -- when socket is disconnected
+# on_data(sock, data) -- when data arrives. return number of bytes consumed
 class StreamSocket:
-	def __init__(self, sock, data_cb, error_cb):
-		self.data_cb = data_cb
-		self.error_cb = error_cb
+	def __init__(self, sock, client):
+		self.client = client
 		self.socket = sock
 		self.socket.setblocking(0)
-		self.data_bytes = -1 # line mode
 
 		# callbacks
-		def wcb(): self.write_cb()
-		self.wev = Event(self.socket.fileno(), Event.WRITE, wcb)
-		def rcb(): self.read_cb()
-		self.rev = Event(self.socket.fileno(), Event.READ, rcb)
+		self.wev = Event(self.socket.fileno(), Event.WRITE, self.write_cb)
+		self.rev = Event(self.socket.fileno(), Event.READ, self.read_cb)
 		self.rev.enable()
 
 		# set up buffers
@@ -95,6 +95,8 @@ class StreamSocket:
 
 		self.name = ""
 		self.send_eof = False
+
+		self.client.on_connect(self) # call callback
 
 	def __str__(self):
 		return '%x' % id(self)
@@ -106,14 +108,14 @@ class StreamSocket:
 		# ok, socket is ready for reading
 		ret = self.socket.recv(4096)
 		if len(ret) == 0: # disconnected
-			self.error_cb(self)
+			self.client.on_error(self)
 			self.close()
 			return
 
 		self.rbuf += ret
 
 		def helper(self):
-			ret = self.data_cb(self, self.rbuf)
+			ret = self.client.on_data(self, self.rbuf)
 			self.rbuf = self.rbuf[ret:]
 			return ret
 
@@ -149,47 +151,52 @@ class StreamSocket:
 		self.rev.disable()
 		self.socket.close()
 
+# a listening TCP socket. doesn't do any callbacks, but
+# the StreamSocket it creates does
 class ListenSocket:
-	def __init__(self, bindport, client_data_cb, client_error_cb):
-		self.client_data_cb = client_data_cb
-		self.client_error_cb = client_error_cb
+	def __init__(self, bindport, client):
+		self.client = client
 		self.socket = socket.socket()
 		self.socket.setblocking(0)
 		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self.socket.bind(('', bindport))
 		self.socket.listen(5)
 
-		self.ev = Event(self.socket.fileno(), Event.READ, lambda: self.accept_cb())
+		self.ev = Event(self.socket.fileno(), Event.READ, self.accept_cb)
 		self.ev.enable()
 
 	def accept_cb(self):
 		(ret, addr) = self.socket.accept()
-		StreamSocket(ret, self.client_data_cb, self.client_error_cb) # will add itself and do the right thing
+		StreamSocket(ret, self.client) # will add itself and do the right thing
 
+	def close(self):
+		self.ev.disable()
+		self.socket.close()
+
+# a UDP socket. callback is:
+# on_dgram(socket, data)
 class DgramSocket:
-	def __init__(self, bindport, cb):
+	def __init__(self, bindport, client):
+		self.client = client
+
 		self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		self.socket.setblocking(0)
 		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
 		if bindport:
 			self.socket.bind(('0.0.0.0', bindport))
-			self.cb = cb # callback called when we get a packet
-
-			def rcb(): self.read_cb()
-			self.rev = Event(self.socket.fileno(), Event.READ, rcb)
+			self.rev = Event(self.socket.fileno(), Event.READ, self.read_cb)
 			self.rev.enable()
 		else:
-			self.cb = None
 			self.rev = None
 
-		def wcb(): self.write_cb()
-		self.wev = Event(self.socket.fileno(), Event.WRITE, wcb)
+		self.wev = Event(self.socket.fileno(), Event.WRITE, self.write_cb)
 
 		self.sendq = [] # list of (data, addr) tuples
 
 	def read_cb(self):
 		data = self.socket.recv(4096)
-		self.cb(data)
+		self.client.on_dgram(self, data)
 
 	def write_cb(self):
 		(data, addr) = self.sendq[0]
@@ -207,10 +214,10 @@ class DgramSocket:
 
 	def send_raw(self, addr, data):
 		self.sendq += [(data, addr)]
-		if DEBUG: 'out %s: %s\n' % (addr, data)
+		if DEBUG: print 'out %s: %s' % (addr, data)
 		self.wev.enable()
 
-	def close():
+	def close(self):
 		if self.rev:
 			self.rev.disable()
 		self.wev.disable()
