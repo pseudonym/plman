@@ -4,7 +4,7 @@
 import sys
 from subprocess import Popen
 import random
-from mynet import ListenSocket, Event
+from mynet import ListenSocket, Event, Timer
 
 class Peer:
 	# status flags
@@ -44,7 +44,7 @@ class Peer:
 			elif s == Peer.STARTED:
 				return 'STARTED'
 
-		return ['STATE', self.host, s2str(self.state)]
+		return ['STATE', self.host, str(self.port), s2str(self.state)]
 
 class Daemon:
 	def __init__(self, host, port, peers):
@@ -112,7 +112,7 @@ class Daemon:
 		# CSTOP host -- request to stop host
 		# CKILL host -- request to kill host
 		elif args[0] == 'CHELLO' and len(args) == 1:
-			for i in self.peers:
+			for i in self.peers.values():
 				socket.write(i.get_state())
 			self.clients.add(socket)
 		elif args[0] == 'CSTART' and len(args) == 2:
