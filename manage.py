@@ -31,10 +31,10 @@ class Manager:
 		args = data[0:pos].split(' ')
 
 		# possible messages:
-		# DIE -- terminate self
+		# KILL -- terminate self
 		# START bootstrap -- initialize using bootstrap
 		# STOP -- stop server, but keep control connection active
-		if args[0] == 'DIE':
+		if args[0] == 'KILL':
 			sys.exit('killed by server')
 		elif args[0] == 'START':
 			self.do_start(args[1])
@@ -42,6 +42,7 @@ class Manager:
 			self.do_stop()
 		else:
 			print 'unknown message:', ' '.join(args)
+
 		return pos + 1
 
 	def do_start(self, bootstrap):
@@ -65,11 +66,11 @@ class Manager:
 
 		self.client.start(opts)
 
-		self.socket.write(['STARTED', str(port)])
+		self.socket.write(['STARTED', self.host, str(port)])
 
 	def do_stop(self):
 		self.client.stop()
-		self.socket.write(['STOPPED'])
+		self.socket.write(['STOPPED', self.host])
 
 	def run(self):
 		Event.dispatch()

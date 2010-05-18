@@ -3,9 +3,9 @@
 
 # host to connect to
 host="$1"
-user="$2"
+user=cornell_cs6460
 # network address of central control server
-control="$3"
+control="$2"
 
 files="*.py *.sh"
 ssh_opts="-q -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
