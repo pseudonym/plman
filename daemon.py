@@ -71,10 +71,11 @@ class Daemon:
 		pass
 
 	def on_error(self, socket):
-		# see if it's a peer; if it's a client, just ignore it
+		# see if it's a peer; if it's a client, remove socket
 		for p in self.peers.values():
 			if p.socket == socket:
 				p.disconnected()
+				self.broadcast(p.get_state())
 		self.clients.discard(socket) # just in case
 
 	def on_data(self, socket, data):
