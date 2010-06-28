@@ -1,0 +1,8 @@
+PLMan is a system for managing peer instances across a PlanetLab-like set of
+servers. It automatically copies the peer code to each of the servers it is
+given, and starts it. These peers connect to a central server, which allows
+clients to connect to it and start/stop/kill peer instances from a simple
+interface. The protocol is simple enough it can be managed from a bare netcat
+session.
+
+An implementation of Chord is provided as an example application.
